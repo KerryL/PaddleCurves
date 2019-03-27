@@ -69,6 +69,9 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, wxEmptyString,
 	CreateControls();
 	SetProperties();
 	initialized = true;
+	
+	TransferDataFromWindow();
+	UpdateCurveDataAndCalculations();
 }
 
 //==========================================================================
@@ -505,16 +508,16 @@ MainFrame::GeometryInfo::SplineInfo MainFrame::GeometryInfo::BuildDefaultSplineI
 	info.push_back(SplinePoint(0.0, 0.5 * shaftWidth, -1.0, -1.0));
 	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;
 
-	info.push_back(SplinePoint(0.25 * referenceLength, 0.5 * referenceWidth, -1.0, /*0.0*/0.0001));
+	info.push_back(SplinePoint(0.25 * referenceLength, 0.5 * referenceWidth, -1.0, 0.0));
 	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FreeXFreeY;
 
-	/*info.push_back(SplinePoint(0.75 * referenceLength, 0.5 * referenceWidth, 1.0, 0.0));
-	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FreeXFreeY;*/
+	info.push_back(SplinePoint(0.75 * referenceLength, 0.5 * referenceWidth, 1.0, 0.0));
+	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FreeXFreeY;
 
-	info.push_back(SplinePoint(referenceLength, 0.25 * referenceWidth, /*0.0*/0.0001, 1.0));
+	info.push_back(SplinePoint(referenceLength, 0.25 * referenceWidth, 0.0, 1.0));
 	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFreeY;
 
-	info.push_back(SplinePoint(0.5 * referenceLength, -0.5 * referenceWidth, 1.0, /*0.0*/0.0001));
+	info.push_back(SplinePoint(0.5 * referenceLength, -0.5 * referenceWidth, 1.0, 0.0));
 	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FreeXFreeY;
 
 	info.push_back(SplinePoint(0.0, -0.5 * shaftWidth, -1.0, 1.0));
@@ -533,7 +536,7 @@ void MainFrame::UpdateCurveDataAndCalculations()
 	CalculateAreasAndCentroids(*data, topArea, bottomArea, topCentroid, bottomCentroid);
 	topHalfAreaText->SetLabel(wxString::Format(_T("%0.3f"), topArea));
 	bottomHalfAreaText->SetLabel(wxString::Format(_T("%0.3f"), bottomArea));
-	areaMismatchText->SetLabel(wxString::Format(_T("%0.3f"), topArea - bottomArea));
+	areaMismatchText->SetLabel(wxString::Format(_T("%0.3f"), topArea + bottomArea));
 	centroidMismatchText->SetLabel(wxString::Format(_T("%0.3f"), topCentroid - bottomCentroid));
 
 	mPlotInterface.ClearAllCurves();
@@ -690,7 +693,7 @@ void MainFrame::CalculateAreasAndCentroids(const LibPlot2D::Dataset2D& ds,
 		const double lastX(ds.GetX()[i - 1]);
 		const double lastY(ds.GetY()[i - 1]);
 
-		const double sliceArea((x + lastX) * 0.5 * (y + lastY));
+		const double sliceArea((x - lastX) * 0.5 * (y + lastY));
 		const double averageArm(0.25 * (y + lastY));// TODO:  Verify centroid calcs
 		if (y >= 0.0 && lastY >= 0.0)
 		{

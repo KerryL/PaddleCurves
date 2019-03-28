@@ -583,16 +583,17 @@ void MainFrame::UpdateCurveDataAndCalculations()
 
 std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 {
+	constexpr unsigned int constraintsPerSegment(4);// at each end of each segment:  point + slope + curvature
+	const unsigned int constraints((geometryInfo.splineInfo.size() - 1) * constraintsPerSegment);
+	Eigen::MatrixXd a(constraints, constraints);
+	Eigen::VectorXd bx(constraints), by(constraints);
+		
 	constexpr unsigned int pointsPerSegment(100);
 	std::unique_ptr<LibPlot2D::Dataset2D> ds(
 		std::make_unique<LibPlot2D::Dataset2D>(pointsPerSegment * (geometryInfo.splineInfo.size() - 1) + 1));
 
 	for (unsigned int i = 1; i < geometryInfo.splineInfo.size(); ++i)
 	{
-		constexpr unsigned int order(3);// TODO:  Solve for coefficients for all segments simultaneously to allow matching curvatures
-		Eigen::Matrix<double, order + 1, order + 1> ax, ay;
-		Eigen::Matrix<double, order + 1, 1> bx, by;
-
 		const double deltaX(geometryInfo.splineInfo[i].x - geometryInfo.splineInfo[i - 1].x);
 		const double deltaY(geometryInfo.splineInfo[i].y - geometryInfo.splineInfo[i - 1].y);
 
@@ -619,51 +620,46 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 			ySlopeAfter = deltaY;
 		}
 
-		ax.row(0).setZero();
-		ax(0, 0) = 1.0;
-		bx(0) = geometryInfo.splineInfo[i - 1].x;
-		ax.row(1).setOnes();
-		bx(1) = geometryInfo.splineInfo[i].x;
+		const unsigned int offset(constraintsPerSegment * (i - 1));
+		a.row(offset).setZero();
+		a(offset, offset) = 1.0;
+		bx(offset) = geometryInfo.splineInfo[i - 1].x;
+		by(offset) = geometryInfo.splineInfo[i - 1].y;
+		
+		a.row(offset + 1).setZero();
+		a.block<1, constraintsPerSegment>(offset + 1, offset).setOnes();
+		bx(offset + 1) = geometryInfo.splineInfo[i].x;
+		by(offset + 1) = geometryInfo.splineInfo[i].y;
 
-		ax.row(2).setZero();
-		ax(2, 1) = 1.0;
-		bx(2) = xSlopeBefore;
-		ax(3, 0) = 0.0;
-		ax(3, 1) = 1.0;
-		ax(3, 2) = 2.0;
-		ax(3, 3) = 3.0;
-		//ax(3, 4) = 4.0;
-		bx(3) = xSlopeAfter;
+		a.row(offset + 2).setZero();
+		a(offset + 2, offset + 1) = 1.0;
+		bx(offset + 2) = xSlopeBefore;
+		by(offset + 2) = ySlopeBefore;
+		
+		a.row(offset + 3).setZero();
+		for (unsigned int k = 1; k < constraintsPerSegment; ++k)
+			a(offset + 3, offset + k) = k;
+		bx(offset + 3) = xSlopeAfter;
+		by(offset + 3) = ySlopeAfter;
+	}
+	
+	const Eigen::VectorXd xCoef(a.fullPivLu().solve(bx));
+	const Eigen::VectorXd yCoef(a.fullPivLu().solve(by));
 
-		ay.row(0).setZero();
-		ay(0, 0) = 1.0;
-		by(0) = geometryInfo.splineInfo[i - 1].y;
-		ay.row(1).setOnes();
-		by(1) = geometryInfo.splineInfo[i].y;
-
-		ay.row(2).setZero();
-		ay(2, 1) = 1.0;
-		by(2) = ySlopeBefore;
-		ay(3, 0) = 0.0;
-		ay(3, 1) = 1.0;
-		ay(3, 2) = 2.0;
-		ay(3, 3) = 3.0;
-		//ay(3, 4) = 4.0;
-		by(3) = ySlopeAfter;
-
-		const Eigen::Matrix<double, order + 1, 1> xCoef(ax.fullPivLu().solve(bx));
-		const Eigen::Matrix<double, order + 1, 1> yCoef(ay.fullPivLu().solve(by));
-
+	for (unsigned int i = 1; i < geometryInfo.splineInfo.size(); ++i)
+	{
+		const unsigned int offset(constraintsPerSegment * (i - 1));
 		for (unsigned int j = 0; j <= pointsPerSegment; ++j)
 		{
+			constexpr unsigned int order(constraintsPerSegment - 1);
 			const double u(static_cast<double>(j) / pointsPerSegment);
-			double x(xCoef(0));
-			double y(yCoef(0));
+			double x(xCoef(offset));
+			double y(yCoef(offset));
 			for (unsigned int k = 1; k <= order; ++k)
 			{
 				const double uPow(pow(u, k));
-				x += xCoef(k) * uPow;
-				y += yCoef(k) * uPow;
+				x += xCoef(offset + k) * uPow;
+				y += yCoef(offset + k) * uPow;
 			}
 
 			const unsigned int index((i - 1) * pointsPerSegment + j);

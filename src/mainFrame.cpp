@@ -583,7 +583,7 @@ void MainFrame::UpdateCurveDataAndCalculations()
 
 std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 {
-	constexpr unsigned int constraintsPerSegment(4);// at each end of each segment:  point + slope + curvature
+	constexpr unsigned int constraintsPerSegment(6);// at each end of each segment:  point + slope + curvature
 	const unsigned int constraints((geometryInfo.splineInfo.size() - 1) * constraintsPerSegment);
 	Eigen::MatrixXd a(constraints, constraints);
 	Eigen::VectorXd bx(constraints), by(constraints);
@@ -641,10 +641,29 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 			a(offset + 3, offset + k) = k;
 		bx(offset + 3) = xSlopeAfter;
 		by(offset + 3) = ySlopeAfter;
+		
+		a.row(offset + 4).setZero();
+		a(offset + 4, offset + 2) = 2.0;
+		bx(offset + 4) = 0.0;// TODO:  Something smarter for offset == 0 case?
+		by(offset + 4) = 0.0;
+		if (offset > 0)
+			a.block<1, constraintsPerSegment>(offset + 4, offset - constraintsPerSegment) =
+				a.block<1, constraintsPerSegment>(offset + 5 - constraintsPerSegment, offset - constraintsPerSegment);// TODO:  Why not negative?
+		
+		a.row(offset + 5).setZero();
+		for (unsigned int k = 2; k < constraintsPerSegment; ++k)
+			a(offset + 5, offset + k) = k * (k - 1);
+		bx(offset + 5) = 0.0;// TODO:  Something smarter for i == geometryInfo.splineInfo.size() - 1 case?
+		by(offset + 5) = 0.0;
+		if (i < geometryInfo.splineInfo.size() - 1)
+			a(offset + 5, offset + 2 + constraintsPerSegment) = -2.0;
 	}
 	
 	const Eigen::VectorXd xCoef(a.fullPivLu().solve(bx));
 	const Eigen::VectorXd yCoef(a.fullPivLu().solve(by));
+	
+	/*std::ofstream f("new.txt");
+	f << a << "\n\n" << bx << "\n\n" << by << "\n\n" << xCoef << "\n\n" << yCoef << std::endl;//*/
 
 	for (unsigned int i = 1; i < geometryInfo.splineInfo.size(); ++i)
 	{

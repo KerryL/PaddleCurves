@@ -583,10 +583,11 @@ void MainFrame::UpdateCurveDataAndCalculations()
 
 std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 {
-	constexpr unsigned int constraintsPerSegment(6);// at each end of each segment:  point + slope + curvature
-	const unsigned int constraints((geometryInfo.splineInfo.size() - 1) * constraintsPerSegment);
+	constexpr unsigned int constraintsPerSegment(5);// at each end of each segment:  point + slope + curvature
+	const unsigned int constraints((geometryInfo.splineInfo.size() - 1) * constraintsPerSegment - 1);
 	Eigen::MatrixXd a(constraints, constraints);
 	Eigen::VectorXd bx(constraints), by(constraints);
+	a.setZero();
 		
 	constexpr unsigned int pointsPerSegment(100);
 	std::unique_ptr<LibPlot2D::Dataset2D> ds(
@@ -621,42 +622,44 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 		}
 
 		const unsigned int offset(constraintsPerSegment * (i - 1));
-		a.row(offset).setZero();
+		const unsigned int constraintsForThisSegment([&i, &constraintsPerSegment, this]()
+		{
+			if (i == geometryInfo.splineInfo.size() - 1)
+				return constraintsPerSegment - 1;
+			return constraintsPerSegment;
+		}());
+		const unsigned int constraintsForNextSegment([&i, &constraintsPerSegment, this]()
+		{
+			if (i == geometryInfo.splineInfo.size() - 2)
+				return constraintsPerSegment - 1;
+			return constraintsPerSegment;
+		}());
+		
 		a(offset, offset) = 1.0;
 		bx(offset) = geometryInfo.splineInfo[i - 1].x;
 		by(offset) = geometryInfo.splineInfo[i - 1].y;
 		
-		a.row(offset + 1).setZero();
-		a.block<1, constraintsPerSegment>(offset + 1, offset).setOnes();
+		a.block(offset + 1, offset, 1, constraintsForThisSegment).setOnes();
 		bx(offset + 1) = geometryInfo.splineInfo[i].x;
 		by(offset + 1) = geometryInfo.splineInfo[i].y;
 
-		a.row(offset + 2).setZero();
 		a(offset + 2, offset + 1) = 1.0;
 		bx(offset + 2) = xSlopeBefore;
 		by(offset + 2) = ySlopeBefore;
 		
-		a.row(offset + 3).setZero();
-		for (unsigned int k = 1; k < constraintsPerSegment; ++k)
+		for (unsigned int k = 1; k < constraintsForThisSegment; ++k)
 			a(offset + 3, offset + k) = k;
 		bx(offset + 3) = xSlopeAfter;
 		by(offset + 3) = ySlopeAfter;
 		
-		a.row(offset + 4).setZero();
-		a(offset + 4, offset + 2) = 2.0;
-		bx(offset + 4) = 0.0;// TODO:  Something smarter for offset == 0 case?
-		by(offset + 4) = 0.0;
-		if (offset > 0)
-			a.block<1, constraintsPerSegment>(offset + 4, offset - constraintsPerSegment) =
-				a.block<1, constraintsPerSegment>(offset + 5 - constraintsPerSegment, offset - constraintsPerSegment);// TODO:  Why not negative?
-		
-		a.row(offset + 5).setZero();
-		for (unsigned int k = 2; k < constraintsPerSegment; ++k)
-			a(offset + 5, offset + k) = k * (k - 1);
-		bx(offset + 5) = 0.0;// TODO:  Something smarter for i == geometryInfo.splineInfo.size() - 1 case?
-		by(offset + 5) = 0.0;
 		if (i < geometryInfo.splineInfo.size() - 1)
-			a(offset + 5, offset + 2 + constraintsPerSegment) = -2.0;
+		{
+			a(offset + 4, offset + 2) = -2.0;
+			bx(offset + 4) = 0.0;
+			by(offset + 4) = 0.0;
+			for (unsigned int k = 2; k < constraintsForNextSegment; ++k)
+				a(offset + 4, offset + k + constraintsPerSegment) = k * (k - 1);
+		}
 	}
 	
 	const Eigen::VectorXd xCoef(a.fullPivLu().solve(bx));
@@ -668,9 +671,16 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 	for (unsigned int i = 1; i < geometryInfo.splineInfo.size(); ++i)
 	{
 		const unsigned int offset(constraintsPerSegment * (i - 1));
+		const unsigned int constraintsForThisSegment([&i, &constraintsPerSegment, this]()
+		{
+			if (i == geometryInfo.splineInfo.size() - 1)
+				return constraintsPerSegment - 1;
+			return constraintsPerSegment;
+		}());
+		
 		for (unsigned int j = 0; j <= pointsPerSegment; ++j)
 		{
-			constexpr unsigned int order(constraintsPerSegment - 1);
+			const unsigned int order(constraintsForThisSegment - 1);
 			const double u(static_cast<double>(j) / pointsPerSegment);
 			double x(xCoef(offset));
 			double y(yCoef(offset));

@@ -654,11 +654,11 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 		
 		if (i < geometryInfo.splineInfo.size() - 1)
 		{
-			a(offset + 4, offset + 2) = -2.0;
+			a(offset + 4, offset + 2) = -2.0;// TODO:  Need to account for t-space different than x-y space
 			bx(offset + 4) = 0.0;
 			by(offset + 4) = 0.0;
 			for (unsigned int k = 2; k < constraintsForNextSegment; ++k)
-				a(offset + 4, offset + k + constraintsPerSegment) = k * (k - 1);
+				a(offset + 4, offset + k + constraintsPerSegment) = k * (k - 1);// TODO:  Need to account for t-space different than x-y space
 		}
 	}
 	

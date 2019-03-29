@@ -785,11 +785,70 @@ void MainFrame::CalculateAreasAndCentroids(const LibPlot2D::Dataset2D& ds,
 
 bool MainFrame::ReadGeometryInfo(const wxString& fileName, GeometryInfo& g)
 {
-	// TODO:  Implement
-	return false;
+	std::ifstream f(fileName.ToStdString());
+	if (!f.is_open() || !f.good())
+		return false;
+
+	std::string line;
+	unsigned int lineCount(0);
+	while (std::getline(f, line))
+	{
+		if (!ParseLine(line, lineCount, g))
+			return false;
+		++lineCount;
+	}
+
+	return true;
+}
+
+bool MainFrame::ParseLine(const std::string& line, const unsigned int& lineCount, GeometryInfo& g)
+{
+	if (lineCount == 0)
+		return ParseToken(line, g.referenceLength);
+	else if (lineCount == 1)
+		return ParseToken(line, g.referenceWidth);
+	else if (lineCount == 2)
+		return ParseToken(line, g.shaftWidth);
+	else if (lineCount == 3)
+	{
+		unsigned int segmentCount;
+		if (!ParseToken(line, segmentCount))
+			return false;
+		g.splineInfo.resize(segmentCount);
+	}
+	else
+	{
+		const unsigned int segment((lineCount - 4) / 5);
+		const unsigned int index((lineCount - 4) % 5);
+		if (index == 0)
+			return ParseToken(line, g.splineInfo[segment].x);
+		else if (index == 1)
+			return ParseToken(line, g.splineInfo[segment].y);
+		else if (index == 2)
+			return ParseToken(line, g.splineInfo[segment].xSlope);
+		else if (index == 3)
+			return ParseToken(line, g.splineInfo[segment].ySlope);
+		else// if (index == 4)
+		{
+			unsigned int temp;
+			if (!ParseToken(line, temp))
+				return false;
+			g.splineInfo[segment].drag = static_cast<GeometryInfo::SplinePoint::DragConstraint>(temp);
+		}
+	}
+
+	return true;
 }
 
 void MainFrame::WriteGeometryInfo(const wxString& fileName, const GeometryInfo& g)
 {
-	// TODO:  Implement
+	std::ofstream f(fileName.ToStdString());
+	if (!f.is_open() || !f.good())
+		return;
+
+	f.precision(6);
+	f << std::fixed << g.referenceLength << '\n' << g.referenceWidth << '\n' << g.shaftWidth << '\n';
+	f << g.splineInfo.size() << '\n';
+	for (const auto& s : g.splineInfo)
+		f << s.x << '\n' << s.y << '\n' << s.xSlope << '\n' << s.ySlope << '\n' << static_cast<int>(s.drag) << '\n';
 }

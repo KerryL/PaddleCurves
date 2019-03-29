@@ -90,6 +90,7 @@ private:
 
 		struct SplinePoint
 		{
+			SplinePoint() = default;
 			SplinePoint(const double& x, const double& y, const double& xSlope, const double& ySlope)
 				: x(x), y(y), xSlope(xSlope), ySlope(ySlope) {}
 			double x;
@@ -126,11 +127,22 @@ private:
 	static bool ReadGeometryInfo(const wxString& fileName, GeometryInfo& g);
 	static void WriteGeometryInfo(const wxString& fileName, const GeometryInfo& g);
 
+	template<typename T>
+	static bool ParseToken(const std::string& line, T& value);
+	static bool ParseLine(const std::string& line, const unsigned int& lineCount, GeometryInfo& g);
+
 	bool initialized = false;
 
 	void MainFrame::WriteRefs() const;// For debugging
 
 	DECLARE_EVENT_TABLE();
 };
+
+template<typename T>
+bool MainFrame::ParseToken(const std::string& line, T& value)
+{
+	std::istringstream ss(line);
+	return !(ss >> value).fail();
+}
 
 #endif// MAIN_FRAME_H_

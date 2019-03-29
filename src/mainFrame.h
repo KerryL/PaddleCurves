@@ -115,6 +115,10 @@ private:
 	} geometryInfo;
 
 	void UpdateCurveDataAndCalculations();
+	static void ComputeSegmentSlopes(const GeometryInfo::SplinePoint& s,
+		const double& deltaX, const double& deltaY, double& xSlope, double& ySlope);
+	std::unique_ptr<LibPlot2D::Dataset2D> BuildSplineCurve(
+		const unsigned int& constraintsPerSegment, const Eigen::VectorXd& xCoef, const Eigen::VectorXd& yCoef) const;
 	static void CalculateAreasAndCentroids(const LibPlot2D::Dataset2D& ds,
 		double& topArea, double& bottomArea, double& topCentroidArm, double& bottomCentroidArm);
 	std::unique_ptr<LibPlot2D::Dataset2D> ComputeCurveData() const;
@@ -123,6 +127,8 @@ private:
 	static void WriteGeometryInfo(const wxString& fileName, const GeometryInfo& g);
 
 	bool initialized = false;
+
+	void MainFrame::WriteRefs() const;// For debugging
 
 	DECLARE_EVENT_TABLE();
 };

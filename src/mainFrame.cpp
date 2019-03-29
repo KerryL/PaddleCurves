@@ -71,7 +71,7 @@ MainFrame::MainFrame() : wxFrame(nullptr, wxID_ANY, wxEmptyString,
 	initialized = true;
 	
 	TransferDataFromWindow();
-	//UpdateCurveDataAndCalculations();
+	//UpdateCurveDataAndCalculations();// TODO:  For some reason this breaks under MSW but works under Linux?  Canvas not yet shown on screen?
 }
 
 //==========================================================================
@@ -509,19 +509,21 @@ MainFrame::GeometryInfo::SplineInfo MainFrame::GeometryInfo::BuildDefaultSplineI
 	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;
 
 	info.push_back(SplinePoint(0.25 * referenceLength, 0.5 * referenceWidth, -1.0, 0.0));
-	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FreeXFreeY;
 
 	info.push_back(SplinePoint(0.75 * referenceLength, 0.5 * referenceWidth, 1.0, 0.0));
-	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FreeXFreeY;
 
 	info.push_back(SplinePoint(referenceLength, 0.25 * referenceWidth, 0.0, 1.0));
 	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFreeY;
 
 	info.push_back(SplinePoint(0.5 * referenceLength, -0.5 * referenceWidth, 1.0, 0.0));
-	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FreeXFreeY;
 
 	info.push_back(SplinePoint(0.0, -0.5 * shaftWidth, -1.0, 1.0));
-	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;
+	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;//*/
+
+	/*info.push_back(SplinePoint(0.0, 0.0, 1.0, 1.0));
+	info.push_back(SplinePoint(1.0, 0.0, 1.0, -1.0));
+	//info.push_back(SplinePoint(2.0, 1.0, 1.0, 1.0));
+	//info.push_back(SplinePoint(2.0, 0.0, -1.0, 1.0));//*/
 
 	return info;
 }
@@ -586,18 +588,30 @@ void MainFrame::ComputeSegmentSlopes(const GeometryInfo::SplinePoint& s,
 {
 	if (fabs(s.xSlope) > fabs(s.ySlope))
 	{
-		xSlope = deltaX;
-		ySlope = s.ySlope / s.xSlope * deltaX;
+		xSlope = 1.0;
+		ySlope = s.ySlope / s.xSlope;
 	}
 	else
 	{
-		xSlope = s.xSlope / s.ySlope * deltaY;
-		ySlope = deltaY;
+		xSlope = s.xSlope / s.ySlope;
+		ySlope = 1.0;
 	}
+
+	const double factor([&deltaX, &deltaY]()
+	{
+		if (fabs(deltaX) > fabs(deltaY))
+			return deltaX;
+		return deltaY;
+	}());
+
+	xSlope *= factor;
+	ySlope *= factor;
 }
 
 std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 {
+	// TODO:  We seem to be struggling with constraints per segment vs order of fit - because we're
+	// fitting x and y curves independently, we really have more DOF than we want for a perfectly constraint polynomial
 	constexpr unsigned int constraintsPerSegment(5);// at each end of each segment:  point + slope; at far end:  curvature
 	const unsigned int constraints((geometryInfo.splineInfo.size() - 1) * constraintsPerSegment - 1);
 	Eigen::MatrixXd ax(constraints, constraints), ay(constraints, constraints);
@@ -654,14 +668,14 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 				return constraintsPerSegment;
 			}());
 
-			ax(offset + 4, offset + 2) = -2.0 * ySlopeAfter;// TODO:  Need to account for t-space different than x-y space - is this correct?
-			ay(offset + 4, offset + 2) = -2.0 * xSlopeAfter;// TODO:  Need to account for t-space different than x-y space - is this correct?
+			ax(offset + 4, offset + 2) = -2.0 * xSlopeBefore;// TODO:  Need to account for t-space different than x-y space - is this correct?
+			ay(offset + 4, offset + 2) = -2.0 * ySlopeBefore;// TODO:  Need to account for t-space different than x-y space - is this correct?
 			bx(offset + 4) = 0.0;
 			by(offset + 4) = 0.0;
 			for (unsigned int k = 2; k < constraintsForNextSegment; ++k)
 			{
-				ax(offset + 4, offset + k + constraintsPerSegment) = k * (k - 1);// TODO:  Need to account for t-space different than x-y space - is this correct?
-				ay(offset + 4, offset + k + constraintsPerSegment) = k * (k - 1);// TODO:  Need to account for t-space different than x-y space - is this correct?
+				ax(offset + 4, offset + k + constraintsPerSegment) = k * (k - 1) * xSlopeAfter;// TODO:  Need to account for t-space different than x-y space - is this correct?
+				ay(offset + 4, offset + k + constraintsPerSegment) = k * (k - 1) * ySlopeAfter;// TODO:  Need to account for t-space different than x-y space - is this correct?
 			}
 		}
 	}

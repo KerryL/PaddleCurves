@@ -521,7 +521,7 @@ MainFrame::GeometryInfo::SplineInfo MainFrame::GeometryInfo::BuildDefaultSplineI
 	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;//*/
 
 	/*info.push_back(SplinePoint(0.0, 0.0, 1.0, 1.0));
-	info.push_back(SplinePoint(1.0, 0.0, 1.0, -1.0));
+	info.push_back(SplinePoint(1.0, 0.0, 1.0, -1.0));//*/
 	//info.push_back(SplinePoint(2.0, 1.0, 1.0, 1.0));
 	//info.push_back(SplinePoint(2.0, 0.0, -1.0, 1.0));//*/
 
@@ -599,7 +599,10 @@ void MainFrame::ComputeSegmentSlopes(const GeometryInfo::SplinePoint& s,
 
 	const double factor([&deltaX, &deltaY]()
 	{
-		if (fabs(deltaX) > fabs(deltaY))
+		if (fabs(deltaX) > fabs(deltaY))//*/// There are some test cases where this gives technically correct (but undesired) results
+	/*const double factor([&deltaX, &deltaY, &s]()// TODO:  I thought the above method would be correct, but it turns out this appears to work better?
+	{
+		if (fabs(s.xSlope) > fabs(s.ySlope))//*/
 			return deltaX;
 		return deltaY;
 	}());
@@ -611,7 +614,7 @@ void MainFrame::ComputeSegmentSlopes(const GeometryInfo::SplinePoint& s,
 std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 {
 	// TODO:  We seem to be struggling with constraints per segment vs order of fit - because we're
-	// fitting x and y curves independently, we really have more DOF than we want for a perfectly constraint polynomial
+	// fitting x and y curves independently, we really have more DOF than we want for a perfectly constrained polynomial
 	constexpr unsigned int constraintsPerSegment(4);// at each end of each segment:  point + slope; at far end:  curvature
 	const unsigned int constraints((geometryInfo.splineInfo.size() - 1) * constraintsPerSegment/* - 1*/);
 	Eigen::MatrixXd ax(constraints, constraints), ay(constraints, constraints);

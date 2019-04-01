@@ -133,7 +133,7 @@ private:
 
 	bool initialized = false;
 
-	void MainFrame::WriteRefs() const;// For debugging
+	void WriteRefs() const;// For debugging
 
 	DECLARE_EVENT_TABLE();
 };

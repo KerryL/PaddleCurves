@@ -505,25 +505,20 @@ void MainFrame::SetTitleFromFileName(wxString pathAndFileName)
 MainFrame::GeometryInfo::SplineInfo MainFrame::GeometryInfo::BuildDefaultSplineInfo() const
 {
 	SplineInfo info;
-	/*info.push_back(SplinePoint(0.0, 0.5 * shaftWidth, -1.0, -1.0));
-	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;
+	info.push_back(SplinePoint(0.0, 0.5 * shaftWidth, -1.0, -1.0));
+	//info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;
 
 	info.push_back(SplinePoint(0.25 * referenceLength, 0.5 * referenceWidth, -1.0, 0.0));
 
 	info.push_back(SplinePoint(0.75 * referenceLength, 0.5 * referenceWidth, 1.0, 0.0));
 
 	info.push_back(SplinePoint(referenceLength, 0.25 * referenceWidth, 0.0, 1.0));
-	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFreeY;
+	//info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFreeY;
 
 	info.push_back(SplinePoint(0.5 * referenceLength, -0.5 * referenceWidth, 1.0, 0.0));
 
 	info.push_back(SplinePoint(0.0, -0.5 * shaftWidth, -1.0, 1.0));
-	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;//*/
-
-	info.push_back(SplinePoint(0.1, 0.2, 0.5, 1.0));
-	info.push_back(SplinePoint(0.3, 0.4, 1.0, -0.5));
-	info.push_back(SplinePoint(0.4, 0.3, 1.0, 2.0));
-	info.push_back(SplinePoint(0.8, 0.4, -2.0, 1.0));//*/
+	//info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;//*/
 
 	return info;
 }
@@ -680,14 +675,20 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 			}
 		}
 	}
+
+	/*Eigen::JacobiSVD<Eigen::MatrixXd> svdX(ax), svdY(ay);
+	const double condX(svdX.singularValues()(0) / svdX.singularValues().tail<1>()(0));
+	const double condY(svdY.singularValues()(0) / svdY.singularValues().tail<1>()(0));*/
+	// It appears that we have some difficulty maintaining our curvature constraint when the slope is zero.
+	// When this happens, the condition number for the y matrix gets very high, so I suspect numerical difficulty over an implementation problem.
 	
 	const Eigen::VectorXd xCoef(ax.fullPivLu().solve(bx));
 	const Eigen::VectorXd yCoef(ay.fullPivLu().solve(by));
 
-	std::ofstream f("test.txt");
+	/*std::ofstream f("test.txt");
 	f << ax << "\n\n" << bx << "\n\n" << xCoef << "\n\n"
 		<< ay << "\n\n" << by << "\n\n" << yCoef;
-	WriteRefs();
+	WriteRefs();*/
 
 	return std::move(BuildSplineCurve(constraintsPerSegment, xCoef, yCoef));
 }
@@ -706,7 +707,7 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::BuildSplineCurve(
 	std::unique_ptr<LibPlot2D::Dataset2D> ds(
 		std::make_unique<LibPlot2D::Dataset2D>(pointsPerSegment * (geometryInfo.splineInfo.size() - 1) + 1));
 
-	std::ofstream f("test.csv");
+	//std::ofstream f("test.csv");
 	for (unsigned int i = 1; i < geometryInfo.splineInfo.size(); ++i)
 	{
 		const unsigned int offset(constraintsPerSegment * (i - 1));
@@ -736,8 +737,8 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::BuildSplineCurve(
 			const unsigned int index((i - 1) * pointsPerSegment + j);
 			ds->GetX()[index] = x;
 			ds->GetY()[index] = y;
-			f.precision(10);
-			f << std::fixed << x << ',' << y << '\n';
+			/*f.precision(10);
+			f << std::fixed << x << ',' << y << '\n';//*/
 		}
 	}
 

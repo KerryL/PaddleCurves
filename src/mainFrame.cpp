@@ -583,32 +583,34 @@ void MainFrame::UpdateCurveDataAndCalculations()
 	mPlotInterface.ForceEqualAxisScaling();
 }
 
+// Derivation for the slope calculations:  We need dx/du and dy/du instead
+// of dy/dx, which would be the typical slope constraint.  We can choose to
+// do this as:
+//   dx/du = (x1 - x0) / (1 - 0) = x1 - x0 and dy/du = dy/dx * dx/du
+// or
+//   dy/du = y1 - y0 and dx/du = dx/dy * dy/du
+// We'll choose the one with the greatest numerical stability (i.e. larger
+// bottom part of the dy/dx or dx/dy).
+// We also require that the associated deltaX or deltaY is non-zero.  If it
+// is allowed to be zero, we effectively lose our slope information.
 void MainFrame::ComputeSegmentSlopes(const GeometryInfo::SplinePoint& s,
 	const double& deltaX, const double& deltaY, double& xSlope, double& ySlope)
 {
-	if (fabs(s.xSlope) > fabs(s.ySlope))
+	constexpr double epsilon(1.0e-6);
+	if (fabs(s.xSlope) > epsilon && fabs(deltaX) > epsilon)
 	{
-		xSlope = 1.0;
-		ySlope = s.ySlope / s.xSlope;
+		xSlope = deltaX;
+		ySlope = s.ySlope / s.xSlope * deltaX;
+	}
+	else if (fabs(s.ySlope) > epsilon && fabs(deltaY) > epsilon)
+	{
+		xSlope = s.xSlope / s.ySlope * deltaY;
+		ySlope = deltaY;
 	}
 	else
 	{
-		xSlope = s.xSlope / s.ySlope;
-		ySlope = 1.0;
+		assert(false);
 	}
-
-	const double factor([&deltaX, &deltaY]()
-	{
-		if (fabs(deltaX) > fabs(deltaY))//*/// There are some test cases where this gives technically correct (but undesired) results
-	/*const double factor([&deltaX, &deltaY, &s]()// TODO:  I thought the above method would be correct, but it turns out this appears to work better?
-	{
-		if (fabs(s.xSlope) > fabs(s.ySlope))//*/
-			return deltaX;
-		return deltaY;
-	}());
-
-	xSlope *= factor;
-	ySlope *= factor;
 }
 
 std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const

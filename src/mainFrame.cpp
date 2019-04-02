@@ -505,7 +505,7 @@ void MainFrame::SetTitleFromFileName(wxString pathAndFileName)
 MainFrame::GeometryInfo::SplineInfo MainFrame::GeometryInfo::BuildDefaultSplineInfo() const
 {
 	SplineInfo info;
-	info.push_back(SplinePoint(0.0, 0.5 * shaftWidth, -1.0, -1.0));
+	/*info.push_back(SplinePoint(0.0, 0.5 * shaftWidth, -1.0, -1.0));
 	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;
 
 	info.push_back(SplinePoint(0.25 * referenceLength, 0.5 * referenceWidth, -1.0, 0.0));
@@ -520,10 +520,10 @@ MainFrame::GeometryInfo::SplineInfo MainFrame::GeometryInfo::BuildDefaultSplineI
 	info.push_back(SplinePoint(0.0, -0.5 * shaftWidth, -1.0, 1.0));
 	info.back().drag = GeometryInfo::SplinePoint::DragConstraint::FixedXFixedY;//*/
 
-	/*info.push_back(SplinePoint(0.0, 0.0, 1.0, 1.0));
-	info.push_back(SplinePoint(1.0, 0.0, 1.0, -1.0));//*/
-	//info.push_back(SplinePoint(2.0, 1.0, 1.0, 1.0));
-	//info.push_back(SplinePoint(2.0, 0.0, -1.0, 1.0));//*/
+	info.push_back(SplinePoint(0.1, 0.2, 0.5, 1.0));
+	info.push_back(SplinePoint(0.3, 0.4, 1.0, -0.5));
+	info.push_back(SplinePoint(0.4, 0.3, 1.0, 2.0));
+	info.push_back(SplinePoint(0.8, 0.4, -2.0, 1.0));//*/
 
 	return info;
 }
@@ -615,15 +615,13 @@ void MainFrame::ComputeSegmentSlopes(const GeometryInfo::SplinePoint& s,
 
 std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 {
-	// TODO:  We seem to be struggling with constraints per segment vs order of fit - because we're
-	// fitting x and y curves independently, we really have more DOF than we want for a perfectly constrained polynomial
-	constexpr unsigned int constraintsPerSegment(4);// at each end of each segment:  point + slope; at far end:  curvature
-	const unsigned int constraints((geometryInfo.splineInfo.size() - 1) * constraintsPerSegment/* - 1*/);
+	constexpr unsigned int constraintsPerSegment(5);// at each end of each segment:  point + slope + curvature
+	const unsigned int constraints((geometryInfo.splineInfo.size() - 1) * constraintsPerSegment - 1);
 	Eigen::MatrixXd ax(constraints, constraints), ay(constraints, constraints);
 	Eigen::VectorXd bx(constraints), by(constraints);
 	ax.setZero();
 	ay.setZero();
-		
+
 	for (unsigned int i = 1; i < geometryInfo.splineInfo.size(); ++i)
 	{
 		const double deltaX(geometryInfo.splineInfo[i].x - geometryInfo.splineInfo[i - 1].x);
@@ -636,8 +634,8 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 		const unsigned int offset(constraintsPerSegment * (i - 1));
 		const unsigned int constraintsForThisSegment([&i, &constraintsPerSegment, this]()
 		{
-			/*if (i == geometryInfo.splineInfo.size() - 1)
-				return constraintsPerSegment - 1;*/
+			if (i == geometryInfo.splineInfo.size() - 1)
+				return constraintsPerSegment - 1;
 			return constraintsPerSegment;
 		}());
 
@@ -663,26 +661,24 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::ComputeCurveData() const
 		}
 		bx(offset + 3) = xSlopeAfter;
 		by(offset + 3) = ySlopeAfter;
-		
-		/*if (i < geometryInfo.splineInfo.size() - 1)
-		{
-			const unsigned int constraintsForNextSegment([&i, &constraintsPerSegment, this]()
-			{
-				if (i == geometryInfo.splineInfo.size() - 2)
-					return constraintsPerSegment - 1;
-				return constraintsPerSegment;
-			}());
 
-			ax(offset + 4, offset + 2) = -2.0 * xSlopeBefore;// TODO:  Need to account for t-space different than x-y space - is this correct?
-			ay(offset + 4, offset + 2) = -2.0 * ySlopeBefore;// TODO:  Need to account for t-space different than x-y space - is this correct?
+		if (i < geometryInfo.splineInfo.size() - 1 && geometryInfo.splineInfo.size() > 2)
+		{
+			ax(offset + 4, offset + constraintsPerSegment + 2) = -2.0 * xSlopeAfter * xSlopeAfter;
+			ay(offset + 4, offset + constraintsPerSegment + 2) = -2.0 * ySlopeAfter * ySlopeAfter;
+
 			bx(offset + 4) = 0.0;
 			by(offset + 4) = 0.0;
-			for (unsigned int k = 2; k < constraintsForNextSegment; ++k)
+		}
+		
+		if (i > 1)
+		{
+			for (unsigned int k = 2; k < constraintsPerSegment; ++k)
 			{
-				ax(offset + 4, offset + k + constraintsPerSegment) = k * (k - 1) * xSlopeAfter;// TODO:  Need to account for t-space different than x-y space - is this correct?
-				ay(offset + 4, offset + k + constraintsPerSegment) = k * (k - 1) * ySlopeAfter;// TODO:  Need to account for t-space different than x-y space - is this correct?
+				ax(offset - 1, offset + k - constraintsPerSegment) = k * (k - 1) * xSlopeBefore * xSlopeBefore;
+				ay(offset - 1, offset + k - constraintsPerSegment) = k * (k - 1) * ySlopeBefore * ySlopeBefore;
 			}
-		}*/
+		}
 	}
 	
 	const Eigen::VectorXd xCoef(ax.fullPivLu().solve(bx));
@@ -716,8 +712,8 @@ std::unique_ptr<LibPlot2D::Dataset2D> MainFrame::BuildSplineCurve(
 		const unsigned int offset(constraintsPerSegment * (i - 1));
 		const unsigned int constraintsForThisSegment([&i, &constraintsPerSegment, this]()
 		{
-			/*if (i == geometryInfo.splineInfo.size() - 1)
-				return constraintsPerSegment - 1;*/
+			if (i == geometryInfo.splineInfo.size() - 1)
+				return constraintsPerSegment - 1;
 			return constraintsPerSegment;
 		}());
 		
